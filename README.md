@@ -4,11 +4,7 @@ A Chrome/Chromium extension that adds one-click block buttons to Reddit for both
 
 ## Demo
 
-https://github.com/user-attachments/assets/demo.mp4
-
-https://github.com/SharanTejaKarra/Reddit-Block/assets/demo.mp4
-
-<video src="assets/demo.mp4" width="100%" controls></video>
+https://github.com/user-attachments/assets/6ae3cb97-e395-4591-a399-22cda57e645c
 
 ## Features
 
