@@ -2,11 +2,19 @@
 
 A Chrome/Chromium extension that adds one-click block buttons to Reddit for both users and subreddits. Instantly cleans up your feed.
 
+## Demo
+
+https://github.com/user-attachments/assets/demo.mp4
+
+https://github.com/SharanTejaKarra/Reddit-Block/assets/demo.mp4
+
+<video src="assets/demo.mp4" width="100%" controls></video>
+
 ## Features
 
 - **Block users** — one-click block button next to every username in posts and comments
 - **Block subreddits** — block button next to subreddit names in the feed
-- **Account age badges** — see how old each account is at a glance (red = <30 days, orange = <6 months, gray = older) for quick bot detection
+- **Account age + karma badges** — see how old each account is and their karma at a glance for quick bot detection
 - **Real Reddit blocking** — actually calls Reddit's block/filter APIs, not just cosmetic hiding
 - **Instant CSS hiding** — blocked content disappears immediately, no page reload needed
 - **Badge count** — extension icon shows total number of blocked users + subreddits
@@ -15,6 +23,33 @@ A Chrome/Chromium extension that adds one-click block buttons to Reddit for both
 - **Cross-device sync** — blocklists sync via `chrome.storage.sync` across devices
 - **Self-block protection** — won't show block button next to your own username
 - **SPA-aware** — works with Reddit's infinite scroll and client-side navigation
+
+## Screenshots
+
+### Block subreddits from feed
+![Feed view — block subreddit](assets/feed-block.png)
+
+### Block users from post view
+![Post view — block user](assets/post-block.png)
+
+### Account age and karma badges in comments
+![Comment view with age/karma badges](assets/comments.png)
+
+### Block confirmation
+![Toast notification](assets/toast.png)
+
+### Popup manager (144 users, 77 subreddits blocked)
+![Popup manager](assets/popup.png)
+
+## Account Age Badges
+
+Every username gets a colored badge showing account age and total karma:
+
+| Badge Color | Meaning |
+|---|---|
+| Red | Account < 30 days old (likely bot/throwaway) |
+| Orange | Account < 6 months old |
+| Gray | Established account (6+ months) |
 
 ## How It Works
 
@@ -39,16 +74,6 @@ A Chrome/Chromium extension that adds one-click block buttons to Reddit for both
 - `storage` — persist blocklists across sessions
 - `cookies` — read `token_v2` for Reddit API authentication
 - Host permissions for `reddit.com` and `oauth.reddit.com`
-
-## Screenshots
-
-*Block buttons appear on hover next to usernames and subreddit names:*
-
-<!-- Add your screenshots here -->
-
-*Account age badges show instantly for bot detection:*
-
-<!-- Add your screenshots here -->
 
 ## License
 
