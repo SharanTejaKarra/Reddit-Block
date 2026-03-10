@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Reddit Block",
+  "version": "2.0.0",
+  "description": "Block Reddit users and subreddits from your feed with one click.",
+  "permissions": ["storage", "cookies"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "host_permissions": [
+    "https://www.reddit.com/*",
+    "https://oauth.reddit.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://*.reddit.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reddit Block</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <h1>Reddit Block</h1>
+    <span class="count" id="total-count">0 blocked</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="users">Users <span class="tab-count" id="users-count">0</span></button>
+    <button class="tab" data-tab="subreddits">Subreddits <span class="tab-count" id="subs-count">0</span></button>
+  </div>
+
+  <div class="search-bar">
+    <input type="text" id="search-input" placeholder="Search blocked users...">
+  </div>
+
+  <div class="item-list" id="item-list">
+    <div class="empty-state" id="empty-state">
+      <p>No blocked users yet.</p>
+      <p class="hint">Click the block button next to any Reddit username to get started.</p>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button id="export-btn" class="btn btn-secondary" title="Export blocklist as JSON">Export</button>
+    <button id="import-btn" class="btn btn-secondary" title="Import blocklist from JSON">Import</button>
+    <input type="file" id="import-file" accept=".json" hidden>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
