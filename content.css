@@ -55,8 +55,13 @@ a[href*="/r/"]:hover + .reddit-block-btn,
   pointer-events: none;
 }
 
-/* Hidden state for blocked users' posts and comments */
+/* Hidden state for blocked posts (full hide) */
 .reddit-block-hidden {
+  display: none !important;
+}
+
+/* Blocked comment — display:none is safe after children are reparented by JS */
+shreddit-comment.reddit-block-comment-hidden {
   display: none !important;
 }
 

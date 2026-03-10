@@ -496,13 +496,14 @@
       }
     });
 
-    // Hide shreddit-comment elements by author
+    // Hide shreddit-comment elements by author.
+    // Reply disappearance is Reddit's native block behavior (server-side), not CSS.
     document.querySelectorAll("shreddit-comment").forEach((comment) => {
       const author = comment.getAttribute("author");
       if (author && blockedUsers.has(author)) {
-        comment.classList.add("reddit-block-hidden");
+        comment.classList.add("reddit-block-comment-hidden");
       } else {
-        comment.classList.remove("reddit-block-hidden");
+        comment.classList.remove("reddit-block-comment-hidden");
       }
     });
 
@@ -538,6 +539,9 @@
   function unhideAll() {
     document.querySelectorAll(".reddit-block-hidden").forEach((el) => {
       el.classList.remove("reddit-block-hidden");
+    });
+    document.querySelectorAll(".reddit-block-comment-hidden").forEach((el) => {
+      el.classList.remove("reddit-block-comment-hidden");
     });
   }
 
