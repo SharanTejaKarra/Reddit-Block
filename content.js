@@ -32,7 +32,7 @@
   const AGE_CACHE_TTL = 1000 * 60 * 60; // 1 hour
   // Track in-flight fetches to avoid duplicate requests
   const ageFetchQueue = new Map(); // username → Promise
-  // Concurrency limiter — max 5 simultaneous API calls
+  // Concurrency limiter - max 5 simultaneous API calls
   let activeFetches = 0;
   const MAX_CONCURRENT_FETCHES = 5;
   const pendingFetches = []; // queue of () => Promise
@@ -174,7 +174,7 @@
   }
 
   function injectAgeBadge(anchorElement, username) {
-    // Don't duplicate — check if badge already exists nearby
+    // Don't duplicate - check if badge already exists nearby
     const next = anchorElement.nextElementSibling;
     if (next?.classList?.contains("reddit-block-age")) return;
 
@@ -478,7 +478,7 @@
   //
   // Problem: <shreddit-comment> nests child comments as light DOM children
   // rendered via <slot>. Any CSS on the HOST element (display:none, opacity,
-  // overflow:hidden) propagates to slotted children — hiding replies from
+  // overflow:hidden) propagates to slotted children, hiding replies from
   // innocent users.
   //
   // Solution: Inject CSS into the comment's open shadow root to hide only
@@ -536,7 +536,7 @@
 
     const shadow = comment.shadowRoot;
     if (!shadow) {
-      // No shadow root — Reddit hasn't rendered this component yet, or
+      // No shadow root - Reddit hasn't rendered this component yet, or
       // the structure changed. Fall back to display:none on the host.
       comment.style.display = "none";
       comment.dataset.redditBlockFallbackHidden = "1";
@@ -544,7 +544,7 @@
     }
 
     // Inject our stylesheet into the shadow root via adoptedStyleSheets.
-    // Non-destructive — appends alongside Reddit's own sheets.
+    // Non-destructive - appends alongside Reddit's own sheets.
     const sheet = getBlockedCommentSheet();
     if (!shadow.adoptedStyleSheets.includes(sheet)) {
       shadow.adoptedStyleSheets = [...shadow.adoptedStyleSheets, sheet];
@@ -601,7 +601,7 @@
     const placeholder = shadow.querySelector(".reddit-block-placeholder");
     if (placeholder) placeholder.remove();
 
-    // Leave the adoptedStyleSheet in place — its rules are gated behind
+    // Leave the adoptedStyleSheet in place - its rules are gated behind
     // :host(.reddit-block-comment-hidden) so they're inert without the class.
   }
 
@@ -627,7 +627,7 @@
       }
     });
 
-    // Soft-block shreddit-comment elements by author — inject CSS into
+    // Soft-block shreddit-comment elements by author - inject CSS into
     // their shadow roots to hide the comment's own UI while keeping the
     // <slot> that renders child reply comments visible.
     document.querySelectorAll("shreddit-comment").forEach((comment) => {
