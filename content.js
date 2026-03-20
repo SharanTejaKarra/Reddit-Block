@@ -41,43 +41,62 @@
 
   function loadBlocklists() {
     return new Promise((resolve) => {
+      // Load from both sync and local, merge results (handles quota overflow)
       chrome.storage.sync.get(
         { blockedUsers: [], blockedSubreddits: [], blocklist: [], v2Migrated: false },
-        (data) => {
-          // Defensive fallback migration -- only if background.js hasn't done it yet.
-          // background.js onInstalled is the primary migration path and sets v2Migrated.
-          if (!data.v2Migrated && data.blocklist.length > 0 && data.blockedUsers.length === 0) {
-            const migrated = data.blocklist;
-            blockedUsers = new Set(migrated);
-            blockedSubreddits = new Set(data.blockedSubreddits);
-            chrome.storage.sync.set(
-              { blockedUsers: migrated, blocklist: [], v2Migrated: true },
-              resolve
-            );
-            return;
-          }
-          blockedUsers = new Set(data.blockedUsers);
-          blockedSubreddits = new Set(data.blockedSubreddits);
-          resolve();
+        (syncData) => {
+          chrome.storage.local.get(
+            { blockedUsers: [], blockedSubreddits: [] },
+            (localData) => {
+              // Defensive fallback migration -- only if background.js hasn't done it yet.
+              if (!syncData.v2Migrated && syncData.blocklist.length > 0 && syncData.blockedUsers.length === 0) {
+                const migrated = syncData.blocklist;
+                blockedUsers = new Set(migrated);
+                blockedSubreddits = new Set(syncData.blockedSubreddits);
+                chrome.storage.sync.set(
+                  { blockedUsers: migrated, blocklist: [], v2Migrated: true },
+                  resolve
+                );
+                return;
+              }
+
+              // Merge sync + local (local may have overflow entries)
+              const allUsers = [...syncData.blockedUsers, ...localData.blockedUsers];
+              const allSubs = [...syncData.blockedSubreddits, ...localData.blockedSubreddits];
+              blockedUsers = new Set(allUsers);
+              blockedSubreddits = new Set(allSubs);
+              resolve();
+            }
+          );
         }
       );
     });
   }
 
-  function saveBlockedUsers() {
+  // Try sync storage first, fall back to local if quota exceeded
+  function saveToStorage(data) {
     try {
-      chrome.storage.sync.set({ blockedUsers: [...blockedUsers] });
+      chrome.storage.sync.set(data, () => {
+        if (chrome.runtime.lastError) {
+          const msg = chrome.runtime.lastError.message || "";
+          if (msg.includes("QUOTA") || msg.includes("quota")) {
+            // Sync quota hit - fall back to local storage (5MB limit)
+            chrome.storage.local.set(data);
+          }
+        }
+      });
     } catch (e) {
-      // Silently ignore "Extension context invalidated" after reload
+      // "Extension context invalidated" after reload - try local
+      try { chrome.storage.local.set(data); } catch (_) {}
     }
   }
 
+  function saveBlockedUsers() {
+    saveToStorage({ blockedUsers: [...blockedUsers] });
+  }
+
   function saveBlockedSubreddits() {
-    try {
-      chrome.storage.sync.set({ blockedSubreddits: [...blockedSubreddits] });
-    } catch (e) {
-      // Silently ignore "Extension context invalidated" after reload
-    }
+    saveToStorage({ blockedSubreddits: [...blockedSubreddits] });
   }
 
   // --- Account Age ---
@@ -605,40 +624,39 @@
     // :host(.reddit-block-comment-hidden) so they're inert without the class.
   }
 
+  // Process a single post element for blocking
+  function processPostBlocking(post) {
+    const author = post.getAttribute("author");
+    const subreddit =
+      post.getAttribute("subreddit-prefixed-name") ||
+      post.getAttribute("subreddit");
+    const subName = subreddit ? subreddit.replace(/^r\//, "").toLowerCase() : null;
+
+    const blockedByUser = author && blockedUsers.has(author);
+    const blockedBySub = subName && blockedSubreddits.has(subName);
+
+    if (blockedByUser || blockedBySub) {
+      post.classList.add("reddit-block-hidden");
+    } else {
+      post.classList.remove("reddit-block-hidden");
+    }
+  }
+
+  // Process a single comment element for blocking
+  function processCommentBlocking(comment) {
+    const author = comment.getAttribute("author");
+    if (author && blockedUsers.has(author)) {
+      softBlockComment(comment);
+    }
+  }
+
   function hideBlockedContent() {
     if (blockedUsers.size === 0 && blockedSubreddits.size === 0) return;
 
-    // Hide shreddit-post elements by author or subreddit
-    document.querySelectorAll("shreddit-post").forEach((post) => {
-      const author = post.getAttribute("author");
-      const subreddit =
-        post.getAttribute("subreddit-prefixed-name") ||
-        post.getAttribute("subreddit");
-      const subName = subreddit ? subreddit.replace(/^r\//, "").toLowerCase() : null;
-
-      const blockedByUser = author && blockedUsers.has(author);
-      const blockedBySub =
-        subName && blockedSubreddits.has(subName);
-
-      if (blockedByUser || blockedBySub) {
-        post.classList.add("reddit-block-hidden");
-      } else {
-        post.classList.remove("reddit-block-hidden");
-      }
-    });
-
-    // Soft-block shreddit-comment elements by author - inject CSS into
-    // their shadow roots to hide the comment's own UI while keeping the
-    // <slot> that renders child reply comments visible.
-    document.querySelectorAll("shreddit-comment").forEach((comment) => {
-      const author = comment.getAttribute("author");
-      if (author && blockedUsers.has(author)) {
-        softBlockComment(comment);
-      }
-    });
+    document.querySelectorAll("shreddit-post").forEach(processPostBlocking);
+    document.querySelectorAll("shreddit-comment").forEach(processCommentBlocking);
 
     // Fallback: hide old-Reddit / non-shreddit post/comment containers.
-    // shreddit-post and shreddit-comment are already handled above, so skip them.
     document.querySelectorAll('a[href*="/user/"]').forEach((link) => {
       const hrefMatch = link
         .getAttribute("href")
@@ -647,7 +665,7 @@
 
       const username = hrefMatch[1];
 
-      // Skip shreddit elements -- they're already processed in the loops above
+      // Skip shreddit elements -- they're already processed above
       if (link.closest("shreddit-post") || link.closest("shreddit-comment")) return;
 
       const container =
@@ -664,6 +682,49 @@
         }
       }
     });
+  }
+
+  // Process only newly added DOM nodes instead of re-scanning the entire page.
+  // Falls back to full scan if the mutations are too broad (e.g. SPA navigation).
+  function processNewNodes(mutations) {
+    let newPosts = [];
+    let newComments = [];
+
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+
+        // Check if the added node itself is a post/comment
+        if (node.nodeName === "SHREDDIT-POST") {
+          newPosts.push(node);
+        } else if (node.nodeName === "SHREDDIT-COMMENT") {
+          newComments.push(node);
+        }
+
+        // Also check children of the added node
+        if (node.querySelectorAll) {
+          const posts = node.querySelectorAll("shreddit-post");
+          const comments = node.querySelectorAll("shreddit-comment");
+          for (const p of posts) newPosts.push(p);
+          for (const c of comments) newComments.push(c);
+        }
+      }
+    }
+
+    // If we found specific new nodes, process only those
+    if (newPosts.length > 0 || newComments.length > 0) {
+      newPosts.forEach((p) => {
+        processPost(p);
+        processPostBlocking(p);
+      });
+      newComments.forEach((c) => {
+        processComment(c);
+        processCommentBlocking(c);
+      });
+      return true;
+    }
+
+    return false; // no specific nodes found, caller should do full scan
   }
 
   function unhideAll() {
@@ -684,11 +745,22 @@
   // --- MutationObserver for SPA navigation & infinite scroll ---
 
   let processTimeout = null;
+  let pendingMutations = [];
 
-  function scheduleProcess() {
+  function scheduleProcess(mutations) {
+    if (mutations) pendingMutations.push(...mutations);
     if (processTimeout) clearTimeout(processTimeout);
     processTimeout = setTimeout(() => {
       processTimeout = null;
+      const collected = pendingMutations;
+      pendingMutations = [];
+
+      // Try targeted processing of just the new nodes
+      if (collected.length > 0 && collected.length < 50) {
+        if (processNewNodes(collected)) return;
+      }
+
+      // Fall back to full scan (SPA navigation, bulk DOM change, etc.)
       injectBlockButtons();
       hideBlockedContent();
     }, 200);
@@ -706,7 +778,7 @@
       }
 
       if (shouldProcess) {
-        scheduleProcess();
+        scheduleProcess(mutations);
       }
     });
 
