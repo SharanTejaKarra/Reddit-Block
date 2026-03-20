@@ -474,6 +474,137 @@
     setTimeout(() => toast.classList.remove("show"), 2000);
   }
 
+  // --- Soft-block comment hiding (nested comment fix) ---
+  //
+  // Problem: <shreddit-comment> nests child comments as light DOM children
+  // rendered via <slot>. Any CSS on the HOST element (display:none, opacity,
+  // overflow:hidden) propagates to slotted children — hiding replies from
+  // innocent users.
+  //
+  // Solution: Inject CSS into the comment's open shadow root to hide only
+  // its OWN rendered UI while keeping the default <slot> (child comments)
+  // and #comment-children (thread lines) visible.
+  //
+  // Shadow DOM structure of <shreddit-comment> (from DevTools):
+  //   #shadow-root (open)
+  //     <details role="article" open>
+  //       <summary>
+  //         <slot name="commentAvatar">    -- avatar
+  //         <slot name="commentMeta">      -- username, timestamp
+  //       </summary>
+  //       <div class="grid ...">
+  //         <slot></slot>                  -- DEFAULT SLOT = child comments
+  //         <slot name="comment-edit">
+  //         <slot name="comment">          -- comment body text
+  //         <slot name="actionRow">        -- vote/reply/share
+  //         <slot name="awardsRow">
+  //         <slot name="next-reply">
+  //         <div id="comment-children">    -- thread lines
+  //       </div>
+  //     </details>
+
+  // CSS injected into blocked comment shadow roots.
+  // :host(.reddit-block-comment-hidden) gates all rules so they only
+  // activate when the class is present on the host element.
+  // Targets specific named slots and summary to hide the comment's own
+  // content while keeping the default <slot> (child comments) visible.
+  const BLOCKED_SHADOW_CSS = [
+    ":host(.reddit-block-comment-hidden) summary { display: none !important; }",
+    ':host(.reddit-block-comment-hidden) slot[name="comment"] { display: none !important; }',
+    ':host(.reddit-block-comment-hidden) slot[name="comment-edit"] { display: none !important; }',
+    ':host(.reddit-block-comment-hidden) slot[name="actionRow"] { display: none !important; }',
+    ':host(.reddit-block-comment-hidden) slot[name="awardsRow"] { display: none !important; }',
+    ':host(.reddit-block-comment-hidden) slot[name="next-reply"] { display: none !important; }',
+    ':host(.reddit-block-comment-hidden) slot[name="commentAvatar"] { display: none !important; }',
+    ':host(.reddit-block-comment-hidden) slot[name="commentMeta"] { display: none !important; }',
+    ":host(.reddit-block-comment-hidden) .reddit-block-placeholder { display: block !important; }",
+  ].join("\n");
+
+  // Shared CSSStyleSheet instance (created once, shared across all shadow roots)
+  let blockedCommentSheet = null;
+
+  function getBlockedCommentSheet() {
+    if (!blockedCommentSheet) {
+      blockedCommentSheet = new CSSStyleSheet();
+      blockedCommentSheet.replaceSync(BLOCKED_SHADOW_CSS);
+    }
+    return blockedCommentSheet;
+  }
+
+  function softBlockComment(comment) {
+    if (comment.classList.contains("reddit-block-comment-hidden")) return;
+
+    const shadow = comment.shadowRoot;
+    if (!shadow) {
+      // No shadow root — Reddit hasn't rendered this component yet, or
+      // the structure changed. Fall back to display:none on the host.
+      comment.style.display = "none";
+      comment.dataset.redditBlockFallbackHidden = "1";
+      return;
+    }
+
+    // Inject our stylesheet into the shadow root via adoptedStyleSheets.
+    // Non-destructive — appends alongside Reddit's own sheets.
+    const sheet = getBlockedCommentSheet();
+    if (!shadow.adoptedStyleSheets.includes(sheet)) {
+      shadow.adoptedStyleSheets = [...shadow.adoptedStyleSheets, sheet];
+    }
+
+    // Insert a placeholder inside the <details> element (after the hidden
+    // <summary>) so it sits in the article layout context. Inline styles
+    // are necessary because page-level CSS can't pierce shadow boundaries.
+    if (!shadow.querySelector(".reddit-block-placeholder")) {
+      const placeholder = document.createElement("div");
+      placeholder.className = "reddit-block-placeholder";
+      const author = comment.getAttribute("author") || "user";
+      placeholder.textContent = "[Blocked user \u2013 u/" + author + "]";
+      placeholder.style.cssText =
+        "padding:6px 8px;font-size:12px;color:#878a8c;font-style:italic;" +
+        "border-left:2px solid #edeff1;margin:4px 0;opacity:0.7;" +
+        "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;" +
+        "user-select:none;cursor:default;";
+      const details = shadow.querySelector("details");
+      if (details) {
+        // Insert after <summary> so it appears where the comment body would be
+        const summary = details.querySelector("summary");
+        if (summary) {
+          summary.after(placeholder);
+        } else {
+          details.insertBefore(placeholder, details.firstChild);
+        }
+      } else {
+        shadow.insertBefore(placeholder, shadow.firstChild);
+      }
+    }
+
+    // Adding this class activates the :host() rules inside the shadow root.
+    // The CSS targets specific named slots (comment, actionRow, etc.) and
+    // summary to hide the comment's own UI while keeping the default <slot>
+    // (child comments) and #comment-children (thread lines) visible.
+    comment.classList.add("reddit-block-comment-hidden");
+  }
+
+  function unsoftBlockComment(comment) {
+    // Check fallback path first
+    if (comment.dataset.redditBlockFallbackHidden) {
+      comment.style.display = "";
+      delete comment.dataset.redditBlockFallbackHidden;
+      return;
+    }
+
+    comment.classList.remove("reddit-block-comment-hidden");
+
+    const shadow = comment.shadowRoot;
+    if (!shadow) return;
+
+    // Remove placeholder from shadow root
+    const placeholder = shadow.querySelector(".reddit-block-placeholder");
+    if (placeholder) placeholder.remove();
+
+    // Leave the adoptedStyleSheet in place — its rules are gated behind
+    // :host(.reddit-block-comment-hidden) so they're inert without the class.
+  }
+
   function hideBlockedContent() {
     if (blockedUsers.size === 0 && blockedSubreddits.size === 0) return;
 
@@ -496,14 +627,13 @@
       }
     });
 
-    // Hide shreddit-comment elements by author.
-    // Reply disappearance is Reddit's native block behavior (server-side), not CSS.
+    // Soft-block shreddit-comment elements by author — inject CSS into
+    // their shadow roots to hide the comment's own UI while keeping the
+    // <slot> that renders child reply comments visible.
     document.querySelectorAll("shreddit-comment").forEach((comment) => {
       const author = comment.getAttribute("author");
       if (author && blockedUsers.has(author)) {
-        comment.classList.add("reddit-block-comment-hidden");
-      } else {
-        comment.classList.remove("reddit-block-comment-hidden");
+        softBlockComment(comment);
       }
     });
 
@@ -540,8 +670,14 @@
     document.querySelectorAll(".reddit-block-hidden").forEach((el) => {
       el.classList.remove("reddit-block-hidden");
     });
+    // Undo soft-blocked comments
     document.querySelectorAll(".reddit-block-comment-hidden").forEach((el) => {
-      el.classList.remove("reddit-block-comment-hidden");
+      unsoftBlockComment(el);
+    });
+    // Also catch fallback-hidden comments (no shadow root path)
+    document.querySelectorAll("[data-reddit-block-fallback-hidden]").forEach((el) => {
+      el.style.display = "";
+      delete el.dataset.redditBlockFallbackHidden;
     });
   }
 

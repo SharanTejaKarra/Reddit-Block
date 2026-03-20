@@ -60,10 +60,10 @@ a[href*="/r/"]:hover + .reddit-block-btn,
   display: none !important;
 }
 
-/* Blocked comment — display:none is safe after children are reparented by JS */
-shreddit-comment.reddit-block-comment-hidden {
-  display: none !important;
-}
+/* Blocked comment — soft-block approach. The host element stays in the DOM
+   with normal layout. CSS is injected into the shadow root via
+   adoptedStyleSheets to hide the comment's own UI while keeping <slot>
+   elements (child comments) visible. No display:none on the host. */
 
 /* Toast notification */
 .reddit-block-toast {
