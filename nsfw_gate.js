@@ -78,7 +78,10 @@
   function nukeAgeGate() {
     let killed = false;
 
-    // Strategy A: Find "Mature Content" text, walk up to the modal container
+    // Strategy A: Find the age-gate modal specifically.
+    // Only match "Mature Content" text that appears alongside gate-specific
+    // language ("confirm your age", "not for everyone") — NOT the small
+    // "Mature Content" badge/tag that Reddit puts on individual posts.
     const walker = document.createTreeWalker(
       document.body || document.documentElement,
       NodeFilter.SHOW_TEXT,
@@ -93,20 +96,37 @@
     let textNode;
     while ((textNode = walker.nextNode())) {
       let el = textNode.parentElement;
-      // Walk up to find the outermost fixed/overlay container
+      // Only target if this is part of the actual age gate dialog,
+      // not a post badge. The gate dialog contains "not for everyone"
+      // or "confirm your age" nearby.
+      let container = null;
+      for (let i = 0; i < 6 && el && el !== document.body; i++, el = el.parentElement) {
+        const inner = (el.innerText || "").toLowerCase();
+        if (inner.includes("not for everyone") || inner.includes("confirm your age")) {
+          container = el;
+          break;
+        }
+      }
+      if (!container) continue;
+
+      // Now walk up from the confirmed gate container to find the modal wrapper
+      el = container;
       let candidate = null;
       while (el && el !== document.body && el !== document.documentElement) {
-        const style = getComputedStyle(el);
         if (
-          style.position === "fixed" ||
-          style.position === "absolute" ||
           el.getAttribute("role") === "dialog" ||
           el.tagName.toLowerCase().includes("overlay") ||
           el.tagName.toLowerCase().includes("modal") ||
           el.tagName.toLowerCase().includes("interstitial")
         ) {
           candidate = el;
-          // Keep walking — we want the OUTERMOST overlay container
+          break; // Take the NEAREST modal wrapper, not outermost
+        }
+        // Fixed-position full-screen element = likely the gate overlay
+        const style = getComputedStyle(el);
+        if (style.position === "fixed" && el.offsetWidth > window.innerWidth * 0.5) {
+          candidate = el;
+          break;
         }
         el = el.parentElement;
       }
