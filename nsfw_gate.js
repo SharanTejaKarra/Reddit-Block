@@ -22,17 +22,24 @@
   }
 
   function removeBlur() {
-    // Remove CSS blur/filter from ALL elements that have it.
-    // Reddit blurs the content behind the age gate modal.
-    document.querySelectorAll("*").forEach((el) => {
+    // Only remove the PAGE-LEVEL blur that the age gate applies.
+    // Do NOT touch individual post/comment elements — they use blur
+    // for spoiler text and NSFW content reveal on click.
+    const targets = [
+      document.documentElement,
+      document.body,
+      document.querySelector("shreddit-app"),
+      document.querySelector("#app"),
+      document.querySelector('[id="2x-container"]'),
+      document.querySelector("main"),
+    ];
+    for (const el of targets) {
+      if (!el) continue;
       const style = getComputedStyle(el);
       if (style.filter && style.filter !== "none") {
         el.style.setProperty("filter", "none", "important");
       }
-      if (style.webkitFilter && style.webkitFilter !== "none") {
-        el.style.setProperty("-webkit-filter", "none", "important");
-      }
-    });
+    }
   }
 
   // Inject a persistent style rule to block blur and common overlay patterns.
