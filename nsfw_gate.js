@@ -148,8 +148,7 @@
         killed = true;
       });
 
-    // Strategy D: Kill the "Want to browse anonymously?" QR code popup.
-    // Reddit uses various xpromo elements — also catch by tag prefix.
+    // Strategy D: Kill xpromo elements by tag prefix.
     document.querySelectorAll("*").forEach((el) => {
       const tag = el.tagName?.toLowerCase() || "";
       if (tag.startsWith("xpromo")) {
@@ -157,6 +156,39 @@
         killed = true;
       }
     });
+
+    // Strategy E: Kill the "Want to browse anonymously?" QR code popup.
+    // This is a plain div in the sidebar, not an xpromo element — find by text.
+    const qrWalker = document.createTreeWalker(
+      document.body || document.documentElement,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode: (n) =>
+          n.textContent.includes("browse anonymously")
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_REJECT,
+      }
+    );
+    let qrNode;
+    while ((qrNode = qrWalker.nextNode())) {
+      // Walk up a few levels to find the card container
+      let el = qrNode.parentElement;
+      for (let i = 0; i < 8 && el && el !== document.body; i++) {
+        // Look for the nearest container that looks like a card/widget
+        const tag = el.tagName?.toLowerCase() || "";
+        if (
+          tag === "aside" ||
+          tag === "section" ||
+          el.querySelector("img[src*='qr'], canvas, svg[class*='qr']") ||
+          (el.offsetWidth > 100 && el.offsetWidth < 500 && el.offsetHeight > 150)
+        ) {
+          el.remove();
+          killed = true;
+          break;
+        }
+        el = el.parentElement;
+      }
+    }
 
     if (killed) {
       removeBlur();
