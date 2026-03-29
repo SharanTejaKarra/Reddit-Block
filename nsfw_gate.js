@@ -60,6 +60,8 @@
       '[data-testid*="xpromo"] { display: none !important; }',
       // Kill the NSFW QR code "browse anonymously" dialog
       "faceplate-dialog#nsfw-qr-dialog { display: none !important; }",
+      // Uncap the NSFW revealed content height so post body is fully visible
+      'shreddit-blurred-container[reason="nsfw"] div[slot="revealed"] { height: auto !important; max-height: none !important; }',
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
   }
