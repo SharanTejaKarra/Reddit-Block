@@ -45,48 +45,60 @@
   // Force-reveal NSFW post content hidden inside shreddit-blurred-container shadow DOMs.
   // The shadow root contains div.outer.h-full with overflow:hidden and height:0px.
   // Page CSS can't pierce shadow boundaries, so we inject styles directly.
-  let nsfwRevealSheet = null;
+  // Track posts we've already fetched content for
+  const fetchedPosts = new Set();
 
   function revealNsfwContent() {
-    document.querySelectorAll('shreddit-blurred-container[reason="nsfw"]').forEach((sbc) => {
-      const shadow = sbc.shadowRoot;
-      if (!shadow) return;
+    // Find posts with empty NSFW blurred containers and fetch their content
+    document.querySelectorAll("shreddit-post").forEach((post) => {
+      const sbc = post.querySelector('shreddit-blurred-container[reason="nsfw"]');
+      if (!sbc) return;
 
-      // Force inline styles on shadow DOM elements — inline !important beats everything
-      const outer = shadow.querySelector(".outer");
-      if (outer) {
-        outer.style.setProperty("height", "auto", "important");
-        outer.style.setProperty("max-height", "none", "important");
-        outer.style.setProperty("overflow", "visible", "important");
-      }
-      const inner = shadow.querySelector(".inner");
-      if (inner) {
-        inner.style.setProperty("display", "block", "important");
-        inner.style.setProperty("height", "auto", "important");
-        inner.style.setProperty("overflow", "visible", "important");
-      }
+      const permalink = post.getAttribute("permalink");
+      if (!permalink) return;
 
-      // Force the revealed slot content visible
+      const postId = post.getAttribute("id") || permalink;
+      if (fetchedPosts.has(postId)) return;
+      fetchedPosts.add(postId);
+
+      // Check if the revealed slot is empty (Reddit didn't send the content)
       const revealed = sbc.querySelector('[slot="revealed"]');
-      if (revealed) {
-        revealed.style.setProperty("height", "auto", "important");
-        revealed.style.setProperty("max-height", "none", "important");
-        revealed.style.setProperty("overflow", "visible", "important");
-      }
+      const hasContent = revealed && revealed.innerText.trim().length > 0;
+      if (hasContent) return;
 
-      // Also force the host element itself
-      sbc.style.setProperty("display", "block", "important");
-      sbc.style.setProperty("height", "auto", "important");
-    });
+      // Fetch the post body via Reddit's JSON API (works in incognito)
+      fetch(permalink + ".json", { credentials: "same-origin" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!data) return;
+          const postData = data?.[0]?.data?.children?.[0]?.data;
+          const html = postData?.selftext_html;
+          if (!html) return;
 
-    // Uncap all ancestor wrappers up to the post
-    document.querySelectorAll('shreddit-blurred-container[reason="nsfw"]').forEach((sbc) => {
-      let el = sbc.parentElement;
-      for (let i = 0; i < 5 && el && el.tagName !== "SHREDDIT-POST"; i++, el = el.parentElement) {
-        el.style.setProperty("overflow", "visible", "important");
-        el.style.setProperty("height", "auto", "important");
-        el.style.setProperty("max-height", "none", "important");
-      }
+          // Decode HTML entities (Reddit returns &lt; &gt; etc.)
+          const decoded = html
+            .replace(/&lt;/g, "<")
+            .replace(/&gt;/g, ">")
+            .replace(/&amp;/g, "&")
+            .replace(/&#39;/g, "'")
+            .replace(/&quot;/g, '"');
+
+          // Replace the blurred container with the actual content
+          const content = document.createElement("div");
+          content.className = "nsfw-gate-injected-body";
+          content.style.cssText =
+            "padding: 0; font-size: 14px; line-height: 1.5; color: var(--color-neutral-content, #d7dadc);";
+          content.innerHTML = decoded;
+
+          // Make links open properly
+          content.querySelectorAll("a").forEach((a) => {
+            a.style.color = "var(--color-secondary-plain, #4fbcff)";
+            a.style.textDecoration = "underline";
+          });
+
+          sbc.replaceWith(content);
+        })
+        .catch(() => {}); // silently fail
     });
   }
 
@@ -108,13 +120,9 @@
       '[data-testid*="xpromo"] { display: none !important; }',
       // Kill the NSFW QR code "browse anonymously" dialog
       "faceplate-dialog#nsfw-qr-dialog { display: none !important; }",
-      // Uncap the NSFW revealed content height so post body is fully visible.
-      // The chain is: div.overflow-hidden (87px cap) > shreddit-blurred-container > div[slot=revealed] (h-full=0px).
-      // Need to uncap all three levels.
-      'shreddit-blurred-container[reason="nsfw"] { height: auto !important; overflow: visible !important; }',
-      'shreddit-blurred-container[reason="nsfw"] div[slot="revealed"] { height: auto !important; max-height: none !important; }',
-      'shreddit-blurred-container[reason="nsfw"].overflow-hidden { height: auto !important; overflow: visible !important; }',
-      'div.overflow-hidden:has(> shreddit-blurred-container[reason="nsfw"]) { height: auto !important; max-height: none !important; overflow: visible !important; }',
+      // Style for injected NSFW post body content
+      ".nsfw-gate-injected-body { padding: 4px 0; }",
+      ".nsfw-gate-injected-body p { margin: 0.5em 0; }",
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
   }
