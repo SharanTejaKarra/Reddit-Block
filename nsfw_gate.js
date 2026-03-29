@@ -42,6 +42,47 @@
     }
   }
 
+  // Force-reveal NSFW post content hidden inside shreddit-blurred-container shadow DOMs.
+  // The shadow root contains div.outer.h-full with overflow:hidden and height:0px.
+  // Page CSS can't pierce shadow boundaries, so we inject styles directly.
+  let nsfwRevealSheet = null;
+
+  function revealNsfwContent() {
+    document.querySelectorAll('shreddit-blurred-container[reason="nsfw"]').forEach((sbc) => {
+      const shadow = sbc.shadowRoot;
+      if (!shadow) return;
+      if (shadow.querySelector(".nsfw-gate-revealed")) return; // already patched
+
+      // Create shared stylesheet once
+      if (!nsfwRevealSheet) {
+        nsfwRevealSheet = new CSSStyleSheet();
+        nsfwRevealSheet.replaceSync(
+          ".outer { height: auto !important; overflow: visible !important; }\n" +
+          ".inner { display: block !important; height: auto !important; }"
+        );
+      }
+
+      if (!shadow.adoptedStyleSheets.includes(nsfwRevealSheet)) {
+        shadow.adoptedStyleSheets = [...shadow.adoptedStyleSheets, nsfwRevealSheet];
+      }
+
+      // Mark as patched
+      const marker = document.createElement("span");
+      marker.className = "nsfw-gate-revealed";
+      marker.style.display = "none";
+      shadow.appendChild(marker);
+    });
+
+    // Also uncap the wrapper div outside the shadow DOM
+    document.querySelectorAll('shreddit-blurred-container[reason="nsfw"]').forEach((sbc) => {
+      const wrapper = sbc.closest(".overflow-hidden") || sbc.parentElement;
+      if (wrapper) {
+        wrapper.style.setProperty("overflow", "visible", "important");
+        wrapper.style.setProperty("height", "auto", "important");
+      }
+    });
+  }
+
   // Inject a persistent style rule to block blur and common overlay patterns.
   // This prevents Reddit from re-applying blur after we remove it.
   function injectAntiGateCSS() {
@@ -236,6 +277,7 @@
     removeBlur();
     restoreScroll();
     injectAntiGateCSS();
+    revealNsfwContent();
 
     return killed;
   }
