@@ -60,8 +60,13 @@
       '[data-testid*="xpromo"] { display: none !important; }',
       // Kill the NSFW QR code "browse anonymously" dialog
       "faceplate-dialog#nsfw-qr-dialog { display: none !important; }",
-      // Uncap the NSFW revealed content height so post body is fully visible
+      // Uncap the NSFW revealed content height so post body is fully visible.
+      // The chain is: div.overflow-hidden (87px cap) > shreddit-blurred-container > div[slot=revealed] (h-full=0px).
+      // Need to uncap all three levels.
+      'shreddit-blurred-container[reason="nsfw"] { height: auto !important; overflow: visible !important; }',
       'shreddit-blurred-container[reason="nsfw"] div[slot="revealed"] { height: auto !important; max-height: none !important; }',
+      'shreddit-blurred-container[reason="nsfw"].overflow-hidden { height: auto !important; overflow: visible !important; }',
+      'div.overflow-hidden:has(> shreddit-blurred-container[reason="nsfw"]) { height: auto !important; max-height: none !important; overflow: visible !important; }',
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
   }
