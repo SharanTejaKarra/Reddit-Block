@@ -48,9 +48,9 @@
       ".overlay-backdrop { display: none !important; }",
       // Ensure the main content is never blurred
       "shreddit-app { filter: none !important; -webkit-filter: none !important; }",
-      // Kill the "Want to browse anonymously?" xpromo
-      "xpromo-nsfw-blocking-container { display: none !important; }",
-      "xpromo-app-selector { display: none !important; }",
+      // Kill all xpromo elements (QR code popup, app nags, etc.)
+      '[class*="xpromo"] { display: none !important; }',
+      '[data-testid*="xpromo"] { display: none !important; }',
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
   }
@@ -61,7 +61,8 @@
       t.includes("mature content") ||
       t.includes("confirm your age") ||
       t.includes("i'm not over 18") ||
-      t.includes("over 18")
+      t.includes("over 18") ||
+      t.includes("browse anonymously")
     );
   }
 
@@ -138,12 +139,24 @@
           ".interstitial",
           'form[action*="over18"]',
           "xpromo-nsfw-blocking-container",
+          '[class*="xpromo"]',
+          '[data-testid*="xpromo"]',
         ].join(",")
       )
       .forEach((el) => {
         el.remove();
         killed = true;
       });
+
+    // Strategy D: Kill the "Want to browse anonymously?" QR code popup.
+    // Reddit uses various xpromo elements — also catch by tag prefix.
+    document.querySelectorAll("*").forEach((el) => {
+      const tag = el.tagName?.toLowerCase() || "";
+      if (tag.startsWith("xpromo")) {
+        el.remove();
+        killed = true;
+      }
+    });
 
     if (killed) {
       removeBlur();
