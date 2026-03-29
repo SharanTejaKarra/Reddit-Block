@@ -51,6 +51,8 @@
       // Kill all xpromo elements (QR code popup, app nags, etc.)
       '[class*="xpromo"] { display: none !important; }',
       '[data-testid*="xpromo"] { display: none !important; }',
+      // Kill the NSFW QR code "browse anonymously" dialog
+      "faceplate-dialog#nsfw-qr-dialog { display: none !important; }",
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
   }
