@@ -51,34 +51,41 @@
     document.querySelectorAll('shreddit-blurred-container[reason="nsfw"]').forEach((sbc) => {
       const shadow = sbc.shadowRoot;
       if (!shadow) return;
-      if (shadow.querySelector(".nsfw-gate-revealed")) return; // already patched
 
-      // Create shared stylesheet once
-      if (!nsfwRevealSheet) {
-        nsfwRevealSheet = new CSSStyleSheet();
-        nsfwRevealSheet.replaceSync(
-          ".outer { height: auto !important; overflow: visible !important; }\n" +
-          ".inner { display: block !important; height: auto !important; }"
-        );
+      // Force inline styles on shadow DOM elements — inline !important beats everything
+      const outer = shadow.querySelector(".outer");
+      if (outer) {
+        outer.style.setProperty("height", "auto", "important");
+        outer.style.setProperty("max-height", "none", "important");
+        outer.style.setProperty("overflow", "visible", "important");
+      }
+      const inner = shadow.querySelector(".inner");
+      if (inner) {
+        inner.style.setProperty("display", "block", "important");
+        inner.style.setProperty("height", "auto", "important");
+        inner.style.setProperty("overflow", "visible", "important");
       }
 
-      if (!shadow.adoptedStyleSheets.includes(nsfwRevealSheet)) {
-        shadow.adoptedStyleSheets = [...shadow.adoptedStyleSheets, nsfwRevealSheet];
+      // Force the revealed slot content visible
+      const revealed = sbc.querySelector('[slot="revealed"]');
+      if (revealed) {
+        revealed.style.setProperty("height", "auto", "important");
+        revealed.style.setProperty("max-height", "none", "important");
+        revealed.style.setProperty("overflow", "visible", "important");
       }
 
-      // Mark as patched
-      const marker = document.createElement("span");
-      marker.className = "nsfw-gate-revealed";
-      marker.style.display = "none";
-      shadow.appendChild(marker);
+      // Also force the host element itself
+      sbc.style.setProperty("display", "block", "important");
+      sbc.style.setProperty("height", "auto", "important");
     });
 
-    // Also uncap the wrapper div outside the shadow DOM
+    // Uncap all ancestor wrappers up to the post
     document.querySelectorAll('shreddit-blurred-container[reason="nsfw"]').forEach((sbc) => {
-      const wrapper = sbc.closest(".overflow-hidden") || sbc.parentElement;
-      if (wrapper) {
-        wrapper.style.setProperty("overflow", "visible", "important");
-        wrapper.style.setProperty("height", "auto", "important");
+      let el = sbc.parentElement;
+      for (let i = 0; i < 5 && el && el.tagName !== "SHREDDIT-POST"; i++, el = el.parentElement) {
+        el.style.setProperty("overflow", "visible", "important");
+        el.style.setProperty("height", "auto", "important");
+        el.style.setProperty("max-height", "none", "important");
       }
     });
   }
