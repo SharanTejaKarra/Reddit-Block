@@ -19,6 +19,7 @@ https://github.com/user-attachments/assets/6ae3cb97-e395-4591-a399-22cda57e645c
 - **Cross-device sync** — blocklists sync via `chrome.storage.sync` across devices
 - **Self-block protection** — won't show block button next to your own username
 - **SPA-aware** — works with Reddit's infinite scroll and client-side navigation
+- **NSFW age-gate bypass** — automatically dismisses the "Mature Content" modal and removes the blur overlay (works in incognito)
 
 ## Screenshots
 
@@ -56,6 +57,7 @@ Every username gets a colored badge showing account age and total karma:
 | Filter subreddit (r/all) | `PUT /api/filter/` | OAuth API via background worker |
 | Instant hide | CSS `display: none` | Immediate, before API completes |
 | Account age | `GET /user/{name}/about.json` | Cached in-memory for 1 hour |
+| NSFW age-gate bypass | Cookie + DOM removal | Runs at `document_start` |
 
 ## Install
 
@@ -64,6 +66,7 @@ Every username gets a colored badge showing account age and total karma:
 3. Enable **Developer mode**
 4. Click **Load unpacked** and select the `Reddit_Block` folder
 5. Navigate to reddit.com — block buttons appear next to usernames and subreddit names
+6. *(Optional)* To bypass NSFW age gates in incognito: go to `chrome://extensions/`, click **Details** on Reddit Block, and enable **Allow in Incognito**
 
 ## Permissions
 
